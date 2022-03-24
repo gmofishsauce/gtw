@@ -14,12 +14,12 @@ import (
 const testData = "three\nblind\nmices\n"
 var loadedTestData = []string{"three", "blind", "mices"}
 
-func createTestFile() (string, error) {
+func createTestFile(data string) (string, error) {
 	tmpFile, err := ioutil.TempFile("", fmt.Sprintf("%s-", filepath.Base(os.Args[0])))
 	if err != nil {
 		return "", err
 	}
-	if _, err = tmpFile.WriteString(testData); err != nil {
+	if _, err = tmpFile.WriteString(data); err != nil {
 		tmpFile.Close()
 		return "", err
 	}
@@ -28,7 +28,7 @@ func createTestFile() (string, error) {
 }
 
 func TestLoadFile(t *testing.T) {
-	testFileName, err := createTestFile()
+	testFileName, err := createTestFile(testData)
 	if err != nil {
 		t.Error("internal error creating test data", err)
 	}
@@ -49,7 +49,7 @@ func TestLoadFile(t *testing.T) {
 }
 
 func loadTestCorpus(t *testing.T) []string {
-	filename, err := createTestFile()
+	filename, err := createTestFile(testData)
 	if err != nil {
 		t.Error("creating test data file (internal error?)", err)
 	}
@@ -69,8 +69,24 @@ func TestNew(t *testing.T) {
 	}
 }
 
+const doubleTest = "taken\n"
+var loadedDoubleTest = []string{"taken"}
 
 func TestBugScore(t *testing.T) {
+	testFileName, err := createTestFile(doubleTest)
+	if err != nil {
+		t.Error("internal error creating test data", err)
+	}
+	corpus, err := LoadFile(testFileName)
+	if err != nil {
+		t.Error("LoadFile", err)
+	}
+	engine := New(corpus)
+	expected := "++#*#"
+	signature, _ := engine.Score("tater")
+	if signature != expected {
+		t.Error("got ", signature, "expected", expected)
+	}
 }
 
 func TestScore(t *testing.T) {
