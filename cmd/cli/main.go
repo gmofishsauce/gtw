@@ -18,17 +18,16 @@ const defaultCorpusName = "webster-2-all-five-letter.corpus"
 const help = `
 --------
 After each guess, a signature will be displayed. In the signature,
-the character '+' means the guess character above it is correct and
-in the correct location. '*' means the character above is in the
-word, but not in the correct location, while '#' means the character
-above is not in the word. Example:
+the character '-' means the letter is not in the word. Lower case
+letters are not in the right place, while upper case letters are
+correctly placed.  Example:
 
 guess> tears
-       ##*** (0 letters in the correct place)
+       --ers (0 letters in the correct place)
 guess> cloud
-       #*#*# (0 letters in the correct place)
+       -l-u- (0 letters in the correct place)
 guess> aural
-       *++++ (4 letters in the correct place)
+       *URAL (4 letters in the correct place)
 guess> rural
 
 Success!
@@ -67,7 +66,7 @@ func main() {
 					fmt.Println("\nSuccess!\n")
 					break
 				}
-				fmt.Printf("       %s (%d letters in the correct place)\n", signature, score)
+				fmt.Printf("       %s (%d letters in the correct place)\n", gtw.Humanize(signature, text), score)
 			}
 		}
 	}
