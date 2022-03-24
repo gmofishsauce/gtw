@@ -110,22 +110,53 @@ const LETTER_INVALID = 0   // This can't ever occur in a guess or a goal
 // correct position in the goal word, '*' indicates the letter is
 // in the goal word but not in the correct position, and '#' means
 // the letter is not in the word. The integer value is the number
-// of '+' characters in the match result string.
-func (e *GtwEngine) Score(guess string) (string, int) {
-	var nCorrect int
-	var signature strings.Builder
+// of '+' characters in the match result string. Note: the function
+// Humanize(signature, guess) can be used to produce a result string
+// is easier for humans to read from the result of this method.
 
-	for i, r := range guess {
-		if r == rune(e.goal[i]) {
-			signature.WriteRune(LETTER_CORRECT)
-			nCorrect += 1
-		} else if strings.Contains(e.goal, string(r)) {
-			signature.WriteRune(LETTER_IN_WORD)
-		} else {
-			signature.WriteRune(LETTER_WRONG)
+func (e *GtwEngine) Score(guess string) (string, int) {
+	var match [5]rune
+	var signature [5]rune
+
+	for i, _ := range(match) {
+		match[i] = rune(e.goal[i])
+		signature[i] = LETTER_WRONG
+	}
+
+	// Find matches in-position ("correct" letters)
+	nCorrect := 0
+	for i, g := range(guess) {
+		if rune(g) == match[i] {
+			match[i] = LETTER_WRONG // no further matches
+			signature[i] = LETTER_CORRECT
+			nCorrect++
 		}
 	}
-	return signature.String(), nCorrect
+
+	// Find letters in the word but out of position.  In-position matches
+	// shouldn't re-match because we changed the match value to an
+	// "impossible" letter in the loop above. So if the goal is "taken"
+	// and the guess is "tater", the second 't' should be marked "not in
+	// the word" rather than "in the word but out of position".
+	// Other matches can match any number of times; e.g. if the goal is
+	// "cares" and the guess is "eerie", all three e's in the guess should
+	// be marked "in word but out of position", even though only one of the
+	// three can ever actually match. So it's weirdly assymetrical, but I
+	// guess this is how it should work.
+	for i, g := range(guess) {
+		for j, m := range(match) {
+			if rune(g) == m {
+				if signature[i] == LETTER_CORRECT {
+					fmt.Printf("guess=%s goal=%s i=%d j=%d g=%c m=%c sig=%s match=%s\n",
+						guess, e.goal, i, j, g, m, string(signature[:]), string(match[:]))
+					panic("internal error: rematch")
+				}
+				signature[i] = LETTER_IN_WORD
+			}
+		}
+	}
+
+	return string(signature[:]), nCorrect
 }
 
 // Humanize the result of a guess. Given a signature like "++##*"

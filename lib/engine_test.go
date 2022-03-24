@@ -82,7 +82,7 @@ func TestBugScore(t *testing.T) {
 		t.Error("LoadFile", err)
 	}
 	engine := New(corpus)
-	expected := "++#*#"
+	expected := "++#+#"
 	signature, _ := engine.Score("tater")
 	if signature != expected {
 		t.Error("got ", signature, "expected", expected)
