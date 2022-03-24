@@ -12,7 +12,6 @@ import (
 // Do not lightly change the test data ... it has very specific
 // properties ... e.g. see the string reverse in TestScore.
 const testData = "three\nblind\nmices\n"
-
 var loadedTestData = []string{"three", "blind", "mices"}
 
 func createTestFile() (string, error) {
@@ -70,6 +69,10 @@ func TestNew(t *testing.T) {
 	}
 }
 
+
+func TestBugScore(t *testing.T) {
+}
+
 func TestScore(t *testing.T) {
 	engine := New(loadTestCorpus(t))
 	signature, score := engine.Score("xyzzy")
@@ -93,5 +96,22 @@ func TestScore(t *testing.T) {
 	signature, score = engine.Score(reversed.String())
 	if signature != "**#**" || score != 0 {
 		t.Error("wrong score for reversed goal", signature, score)
+	}
+}
+
+func TestFixedGame(t *testing.T) {
+	engine := New(loadTestCorpus(t))
+	aWord := engine.Corpus()[0]
+	engine.NewFixedGame(aWord)
+	signature, score := engine.Score(aWord)
+	if signature != "+++++" || score != 5 {
+		t.Error("wrong score for specified goal word", signature, score, aWord)
+	}
+}
+
+func TestHumanize(t *testing.T) {
+	result := Humanize("++##*", "after")
+	if result != "AF--r" {
+		t.Error("Humanize(++##*, after): bad result", result)
 	}
 }
