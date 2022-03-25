@@ -129,6 +129,8 @@ func (e *GtwEngine) Score(guess string) (string, int) {
 	// and score any letter that still exists in the goal as
 	// an out-of-place letter.
 
+	unsolvedLetterCounts := make(map[rune]int)
+
 	nCorrect := 0
 	for i, g := range(aGuess) {
 		if g == aGoal[i] {
@@ -136,15 +138,23 @@ func (e *GtwEngine) Score(guess string) (string, int) {
 			aGoal[i] = 0
 			signature[i] = LETTER_CORRECT
 			nCorrect++
+		} else {
+			count, exists := unsolvedLetterCounts[aGoal[i]]
+
+			if !exists {
+				count = 0
+			}
+
+			unsolvedLetterCounts[aGoal[i]] = count + 1
 		}
 	}
 
 	for i, g := range(aGuess) {
 		if aGuess[i] != 0 {
-			for _, m := range(aGoal) {
-				if g == m {
-					signature[i] = LETTER_IN_WORD				
-				}
+			count, exists := unsolvedLetterCounts[g]
+			if exists && count > 0 {
+				unsolvedLetterCounts[g] = count - 1
+				signature[i] = LETTER_IN_WORD
 			}
 		}
 	}
