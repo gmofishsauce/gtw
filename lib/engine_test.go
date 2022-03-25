@@ -89,6 +89,26 @@ func TestBugScore(t *testing.T) {
 	}
 }
 
+const thirdTest = "cross\n"
+var loadedThirdTest = []string{"cross"}
+
+func TestBug3Score(t *testing.T) {
+	testFileName, err := createTestFile(thirdTest)
+	if err != nil {
+		t.Error("internal error creating test data", err)
+	}
+	corpus, err := LoadFile(testFileName)
+	if err != nil {
+		t.Error("LoadFile", err)
+	}
+	engine := New(corpus)
+	expected := "#+#+#"
+	signature, _ := engine.Score("brush")
+	if signature != expected {
+		t.Error("got ", signature, "expected", expected)
+	}
+}
+
 func TestScore(t *testing.T) {
 	engine := New(loadTestCorpus(t))
 	signature, score := engine.Score("xyzzy")
