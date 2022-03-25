@@ -115,43 +115,36 @@ const LETTER_INVALID = 0   // This can't ever occur in a guess or a goal
 // is easier for humans to read from the result of this method.
 
 func (e *GtwEngine) Score(guess string) (string, int) {
-	var match [5]rune
-	var signature [5]rune
+	var aGuess, aGoal, signature [5]rune
 
-	for i, _ := range(match) {
-		match[i] = rune(e.goal[i])
+	for i, _ := range(guess) {
+		aGuess[i] = rune(guess[i])
+		aGoal[i] = rune(e.goal[i])
 		signature[i] = LETTER_WRONG
 	}
 
-	// Find matches in-position ("correct" letters)
+	// First find all the correct matches. Once found, they
+	// play no further role in matching either in the goal
+	// or in the guess. Then make a second pass over the guess
+	// and score any letter that still exists in the goal as
+	// an out-of-place letter.
+
 	nCorrect := 0
-	for i, g := range(guess) {
-		if rune(g) == match[i] {
-			match[i] = LETTER_WRONG // no further matches
+	for i, g := range(aGuess) {
+		if g == aGoal[i] {
+			aGuess[i] = 0
+			aGoal[i] = 0
 			signature[i] = LETTER_CORRECT
 			nCorrect++
 		}
 	}
 
-	// Find letters in the word but out of position.  In-position matches
-	// shouldn't re-match because we changed the match value to an
-	// "impossible" letter in the loop above. So if the goal is "taken"
-	// and the guess is "tater", the second 't' should be marked "not in
-	// the word" rather than "in the word but out of position".
-	// Other matches can match any number of times; e.g. if the goal is
-	// "cares" and the guess is "eerie", all three e's in the guess should
-	// be marked "in word but out of position", even though only one of the
-	// three can ever actually match. So it's weirdly assymetrical, but I
-	// guess this is how it should work.
-	for i, g := range(guess) {
-		for j, m := range(match) {
-			if rune(g) == m {
-				if signature[i] == LETTER_CORRECT {
-					fmt.Printf("guess=%s goal=%s i=%d j=%d g=%c m=%c sig=%s match=%s\n",
-						guess, e.goal, i, j, g, m, string(signature[:]), string(match[:]))
-					panic("internal error: rematch")
+	for i, g := range(aGuess) {
+		if aGuess[i] != 0 {
+			for _, m := range(aGoal) {
+				if g == m {
+					signature[i] = LETTER_IN_WORD				
 				}
-				signature[i] = LETTER_IN_WORD
 			}
 		}
 	}
