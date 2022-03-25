@@ -135,6 +135,15 @@ func TestScore(t *testing.T) {
 	}
 }
 
+func TestScoreOnlyFirstTwoTeesInWrongPlace(t *testing.T) {
+	engine := New([]string{"twist"})
+	engine.NewFixedGame("twist")
+	signature, score := engine.Score("ottto")
+	if signature != "#**##" || score != 0 {
+		t.Error("wrong signature or score for ottto", signature, score, engine.Cheat())
+	}
+}
+
 func TestFixedGame(t *testing.T) {
 	engine := New(loadTestCorpus(t))
 	aWord := engine.Corpus()[0]
