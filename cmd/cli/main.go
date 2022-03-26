@@ -138,14 +138,14 @@ func runAllSelectedBotsNGames(engine *gtw.GtwEngine, games int, selectedStrategi
 			if ! stringInSlice(s.name, selectedStrategies) {
 				continue
 			}
+
 			var guessResults []string
 			nCorrect := 0
+			var result string
+
 			for tries := 1; ; tries++ {
-				fmt.Printf("core at the top, calling Guess with nCorrect=%d\n", nCorrect)
 				guess := s.bot.Guess(engine.Corpus(), guessResults, nCorrect)
-				fmt.Printf("core calling Score with guess=%s\n", guess)
-				result, nCorrect := engine.Score(guess)
-				fmt.Printf("Score returned %s, %d\n", result, nCorrect)
+				result, nCorrect = engine.Score(guess)
 				if nCorrect == 5 {
 					if *verbose {
 						fmt.Printf("PASS: bot \"%s\" goal %s n %d\n", s.name, goal, tries)
@@ -154,10 +154,11 @@ func runAllSelectedBotsNGames(engine *gtw.GtwEngine, games int, selectedStrategi
 				}
 				guessResults = append(guessResults, result)	
 				if tries >= MAX_TRIES {
-					fmt.Printf("FAIL: bot \"%s\" goal %s n %d\n", s.name, goal, tries)
-					break
+					if *verbose {
+						fmt.Printf("FAIL: bot \"%s\" goal %s n %d\n", s.name, goal, tries)
+						break
+					}
 				}
-				fmt.Printf("core at the bottom, nCorrect=%d\n", nCorrect)
 			}
 		}
 	}
