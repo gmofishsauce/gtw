@@ -43,17 +43,19 @@ func AmazingGuesser(corpus []string, results []string, nCorrect int) string {
 }
 // --- End "for test purposes" ---
 
+// Add your strategy here
 var registeredStrategies = []Strategy {
 	Strategy{name: "ui", bot: GuesserFunc(UserGuess), interactive: true,},
 	Strategy{name: "pathetic", bot: GuesserFunc(HopelessGuesser), interactive: false},
 	Strategy{name: "amazing", bot: GuesserFunc(AmazingGuesser), interactive: false},
 }
-var NonInteractiveStrategyNames = []string{"pathetic","amazing"} // TODO construct dynamically
 
+// Command line flags
 var corpusPath = flag.String("c", "", "specify the corpus")
 var nGames = flag.Int("n", 0, "the number of games, default entire corpus")
 var verbose = flag.Bool("v", false, "enable verbose output")
 var rawStrategies = flag.String("s", "ui", "comma-separate list of strategies, default \"ui\".")
+var goals = flag.String("g", "", "specify a set of goal words")
 
 const MAX_TRIES = 10 // don't allow a bot to try forever (10 is too low though)
 
@@ -66,22 +68,68 @@ func main() {
 		return
 	}
 
-	var strategyNames []string
+	// XXX this is silly, just a pass a []Strategy to the runner
+	var selectedStrategies []string
 	if (*rawStrategies == "ALL") {
-		strategyNames = NonInteractiveStrategyNames
+		selectedStrategies = []string{}
+		for _, s := range(registeredStrategies) {
+			if !s.interactive {
+				selectedStrategies = append(selectedStrategies, s.name)
+			}
+		}
 	} else {
-		strategyNames = strings.Split(*rawStrategies, ",")
+		selectedStrategies = strings.Split(*rawStrategies, ",")
 	}
 
-	engine := gtw.New(corpus)
-	if *nGames == 0 {
-		*nGames = len(engine.Corpus())
-		fmt.Printf("Running corpus (%d words) in order\n", *nGames)
-	} else if *nGames > len(corpus) {
-		*nGames = len(corpus)
+	var goalWords []string
+	if *goals == "" {
+		goalWords = corpus 
+	} else {
+		goalWords, err = gtw.LoadFile(*goals)
+		if err != nil {
+			fmt.Printf("Cannot load goal words from %s\n", *goals)
+			return
+		}
 	}
-	runAllSelectedBotsNGames(engine, strategyNames)
 
+	games := *nGames
+	if games == 0 || games >= len(goalWords) {
+		games = len(goalWords)
+	}
+	fmt.Printf("Running %d games\n", games)
+
+	runAllSelectedBotsNGames(gtw.New(corpus), games, selectedStrategies, goalWords)
+}
+
+func runAllSelectedBotsNGames(engine *gtw.GtwEngine, games int, selectedStrategies []string, goalWords []string) {
+	for i := 0; i < games; i++ {
+		engine.NewFixedGame(goalWords[i])
+		goal := engine.Cheat()
+		fmt.Printf("cheat: \"%s\"\n", goal)
+
+		for _, s := range registeredStrategies {
+			if ! stringInSlice(s.name, selectedStrategies) {
+				continue
+			}
+			var guessResults []string
+			nCorrect := 0
+			for tries := 1; ; tries++ {
+				guess := s.bot.Guess(engine.Corpus(), guessResults, nCorrect)
+				result, nCorrect := engine.Score(guess)
+				if nCorrect == 5 {
+					if *verbose {
+						fmt.Printf("PASS: bot \"%s\" goal %s n %d\n", s.name, goal, tries)
+					}
+					break
+				}
+				guessResults = append(guessResults, result)	
+				if tries >= MAX_TRIES {
+					fmt.Printf("FAIL: bot \"%s\" goal %s n %d\n", s.name, goal, tries)
+					break
+				}
+			}
+		}
+	}
 }
 
 func stringInSlice(s string, slice []string) bool {
@@ -91,36 +139,5 @@ func stringInSlice(s string, slice []string) bool {
 		}
 	}
 	return false
-}
-
-func runAllSelectedBotsNGames(engine *gtw.GtwEngine, strategyNames []string) {
-	for i := 0; i < *nGames; i++ {
-		engine.NewFixedGame(engine.Corpus()[i])
-		goal := engine.Cheat()
-		fmt.Printf("goal \"%s\"\n", goal)
-
-		for _, s := range registeredStrategies {
-			if ! stringInSlice(s.name, strategyNames) {
-				continue
-			}
-			scores := []string{}
-			nCorrect := 0
-			for tries := 1; ; tries++ {
-				guess := s.bot.Guess(engine.Corpus(), scores, nCorrect)
-				score, nCorrectx := engine.Score(guess)
-				if nCorrectx == 5 {
-					if *verbose {
-						fmt.Printf("PASS: bot \"%s\" goal %s n %d\n", s.name, goal, tries)
-					}
-					break
-				}
-				scores = append(scores, score)	
-				if tries >= MAX_TRIES {
-					fmt.Printf("FAIL: bot \"%s\" goal %s n %d\n", s.name, goal, tries)
-					break
-				}
-			}
-		}
-	}
 }
 

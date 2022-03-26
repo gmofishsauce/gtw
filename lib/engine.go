@@ -75,21 +75,9 @@ func (e *GtwEngine) NewGame() {
 	e.goal = e.corpus[e.rng.Int31n(int32(len(e.corpus)))]
 }
 
-// NewFixedGame reinitializes the goal word to the argument. The
-// argument value must be in the corpus.
+// NewFixedGame reinitializes the goal word to the argument
+// The argument is not necessarily in the corpus.
 func (e *GtwEngine) NewFixedGame(aWord string) error {
-	// If speed is of the essence,
-	// this sanity code can be removed.
-	found := false
-	for _, v := range(e.corpus) {
-		if v == aWord {
-			found = true
-			break
-		}
-	}
-	if !found {
-		return fmt.Errorf("candidate goal word not in corpus: %s", aWord)
-	}
 	e.goal = aWord
 	return nil
 }
