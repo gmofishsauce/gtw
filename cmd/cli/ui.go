@@ -9,25 +9,6 @@ import (
 	"github.com/gmofishsauce/gtw/lib"
 )
 
-const uiHelp = `
---------
-After each guess, a signature will be displayed. In the signature,
-the character '-' means the letter is not in the word. Lower case
-letters are not in the right place, while upper case letters are
-correctly placed.  Example:
-
-guess> tears
-       --ers (0 letters in the correct place)
-guess> cloud
-       -l-u- (0 letters in the correct place)
-guess> aural
-       *URAL (4 letters in the correct place)
-guess> rural
-
-Success!
---------
-`
-
 var console *bufio.Reader
 var previousGuess string
 
