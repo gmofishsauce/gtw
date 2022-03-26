@@ -77,10 +77,13 @@ var registeredStrategies = []Strategy {
 var corpusPath = flag.String("c", "", "required: `corpus-file` to load")
 var nGames = flag.Int("n", 0, "the `number` of games to run, default entire corpus")
 var verbose = flag.Bool("v", false, "enable verbose output")
-var strategyNames = flag.String("s", "ui", "comma-separate list of `strategy-names`, default \"ui\".")
+var strategyNames = flag.String("s", "ui", "comma-separated list of `strategy-names` or ALL for all noninteractive strategies")
 var goals = flag.String("g", "", "list of `goal-words`, default entire corpus")
 
-const MAX_TRIES = 10 // don't allow a bot to try forever (10 is temporary for testing; will be higher)
+// This is used to size the slice that holds the distribution of results for each
+// bot, so enormous numbers are not advisable. It will work fine, but the output
+// will be ridiculously hard to read if there are stupid bots that make many guesses.
+const MAX_TRIES = 20
 
 func main() {
 	flag.Parse()
@@ -95,17 +98,20 @@ func main() {
 		return
 	}
 
-	// XXX this is silly, just a pass a []Strategy to the runner FIXME
-	var selectedStrategies []string
-	if (*strategyNames == "ALL") {
-		selectedStrategies = []string{}
+	var selectedStrategies []Strategy
+	if *strategyNames == "ALL" {
 		for _, s := range(registeredStrategies) {
 			if !s.interactive {
-				selectedStrategies = append(selectedStrategies, s.name)
+				selectedStrategies = append(selectedStrategies, s)
 			}
 		}
 	} else {
-		selectedStrategies = strings.Split(*strategyNames, ",")
+		selectedNames := strings.Split(*strategyNames, ",")
+		for _, s := range(registeredStrategies) {
+			if stringInSlice(s.name, selectedNames) {
+				selectedStrategies = append(selectedStrategies, s)
+			}
+		}
 	}
 
 	var goalWords []string
@@ -123,44 +129,53 @@ func main() {
 	if games == 0 || games >= len(goalWords) {
 		games = len(goalWords)
 	}
-	fmt.Printf("Running %d games\n", games)
+	if *verbose {
+		fmt.Printf("Running %d games\n", games)
+	}
 
 	runAllSelectedBotsNGames(gtw.New(corpus), games, selectedStrategies, goalWords)
 }
 
-func runAllSelectedBotsNGames(engine *gtw.GtwEngine, games int, selectedStrategies []string, goalWords []string) {
+func runAllSelectedBotsNGames(engine *gtw.GtwEngine, games int, selectedStrategies []Strategy, goalWords []string) {
+	statistics := make(map[string][]int)
+
+	for _, s := range selectedStrategies {
+		statistics[s.name] = make([]int, MAX_TRIES, MAX_TRIES)
+	}
+	
 	for i := 0; i < games; i++ {
 		engine.NewFixedGame(goalWords[i])
 		goal := engine.Cheat()
-		fmt.Printf("cheat: \"%s\"\n", goal)
+		//fmt.Printf("cheat: \"%s\"\n", goal)
 
-		for _, s := range registeredStrategies {
-			if ! stringInSlice(s.name, selectedStrategies) {
-				continue
-			}
-
+		for _, s := range selectedStrategies {
 			var guessResults []string
 			nCorrect := 0
-			var result string
+			var signature string
 
 			for tries := 1; ; tries++ {
 				guess := s.bot.Guess(engine.Corpus(), guessResults, nCorrect)
-				result, nCorrect = engine.Score(guess)
+				signature, nCorrect = engine.Score(guess)
 				if nCorrect == 5 {
 					if *verbose {
 						fmt.Printf("PASS: bot \"%s\" goal %s n %d\n", s.name, goal, tries)
 					}
+					statistics[s.name][tries]++
 					break
 				}
-				guessResults = append(guessResults, result)	
+				guessResults = append(guessResults, signature)	
 				if tries >= MAX_TRIES {
 					if *verbose {
 						fmt.Printf("FAIL: bot \"%s\" goal %s n %d\n", s.name, goal, tries)
-						break
 					}
+					statistics[s.name][MAX_TRIES-1]++
+					break
 				}
 			}
 		}
+	}
+	for name := range statistics {
+		fmt.Printf("STATS bot %s : %v\n", name, statistics[name])
 	}
 }
 
