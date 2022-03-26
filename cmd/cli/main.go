@@ -5,69 +5,83 @@ Package cli implements a command line interface to play a word game.
 package main
 
 import (
-	"bufio"
+	"flag"
 	"fmt"
-	"os"
-	"strings"
 
 	"github.com/gmofishsauce/gtw/lib"
 )
 
-const defaultCorpusName = "webster-2-all-five-letter.corpus"
+type Guesser interface{
+	Guess(corpus []string, scores []string, nCorrect int) string
+}
 
-const help = `
---------
-After each guess, a signature will be displayed. In the signature,
-the character '-' means the letter is not in the word. Lower case
-letters are not in the right place, while upper case letters are
-correctly placed.  Example:
+// Allow the Guesser interface to be implemented with just functions
+// See the "ui" strategy in the strategies array below for an example
+type GuesserFunc func([]string, []string, int) string
 
-guess> tears
-       --ers (0 letters in the correct place)
-guess> cloud
-       -l-u- (0 letters in the correct place)
-guess> aural
-       *URAL (4 letters in the correct place)
-guess> rural
+func (f GuesserFunc) Guess(c []string, s []string, n int) string {
+	return f(c, s, n)
+}
 
-Success!
---------
-`
+type Strategy struct {
+	name string
+	bot  Guesser 
+	interactive bool
+}
+
+var strategies = []Strategy {
+	Strategy{name: "ui", bot: GuesserFunc(UserGuess), interactive: true,},
+}
+
+var corpusPath = flag.String("c", "", "specify the corpus")
+var nGames = flag.Int("n", 0, "the number of games")
+var verbose = flag.Bool("v", false, "enable verbose output")
+
+const MAX_TRIES = 10 // don't allow a bot to try forever
 
 func main() {
-	if len(os.Args) != 2 {
-		fmt.Println("usage: cli corpus-path")
-		return
-	}
-	corpusPath := os.Args[1]
-	corpus, err := gtw.LoadFile(corpusPath)
+	flag.Parse()
+
+	corpus, err := gtw.LoadFile(*corpusPath)
 	if err != nil {
 		fmt.Printf("Cannot load corpus %s\n", corpusPath)
 		return
 	}
-	fmt.Printf("Loaded corpus: %d words\n", len(corpus))
-	fmt.Println(help)
 
 	engine := gtw.New(corpus)
+	if *nGames == 0 {
+		*nGames = len(engine.Corpus())
+		fmt.Printf("Running corpus (%d words) in order\n", *nGames)
+	}
+	runAllSelectedBotsNGames(engine)
 
-	reader := bufio.NewReader(os.Stdin)
-	for { // one game per loop. Runs until ^C.
-		engine.NewGame()
-		fmt.Println("New goal word selected")
-		for { // one guess per loop. Runs until success
-			fmt.Printf("guess> ")
-			text, _ := reader.ReadString('\n')
-			text = strings.TrimSpace(text)
-			if len(text) != 5 {
-				fmt.Println("5-letter words only")
-			} else {
-				signature, score := engine.Score(text)
-				if score == 5 {
-					fmt.Println("\nSuccess!\n")
+}
+
+func runAllSelectedBotsNGames(engine *gtw.GtwEngine) {
+	for i := 0; i < *nGames; i++ {
+		engine.NewFixedGame(engine.Corpus()[i])
+		goal := engine.Cheat()
+		fmt.Printf("goal %s\n", goal)
+
+		for _, s := range strategies {
+			scores := []string{}
+			nCorrect := 0
+			for tries := 1; ; tries++ {
+				guess := s.bot.Guess(engine.Corpus(), scores, nCorrect)
+				score, nCorrectx := engine.Score(guess)
+				if nCorrectx == 5 {
+					if *verbose {
+						fmt.Printf("success bot %s goal %s n %d\n", s.name, goal, tries)
+					}
 					break
 				}
-				fmt.Printf("       %s (%d letters in the correct place)\n", gtw.Humanize(signature, text), score)
+				scores = append(scores, score)	
+				if tries >= MAX_TRIES {
+					fmt.Printf("fail bot %s goal %s n %d\n", s.name, goal, tries)
+					break
+				}
 			}
 		}
 	}
 }
+
