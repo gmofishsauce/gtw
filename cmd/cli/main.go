@@ -7,6 +7,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"strings"
 
 	"github.com/gmofishsauce/gtw/lib"
 )
@@ -29,15 +30,32 @@ type Strategy struct {
 	interactive bool
 }
 
-var strategies = []Strategy {
-	Strategy{name: "ui", bot: GuesserFunc(UserGuess), interactive: true,},
+// --- For test purposes - won't leave permanently ---
+func HopelessGuesser(corpus []string, results []string, nCorrect int) string {
+	return "xvqzw"
 }
 
-var corpusPath = flag.String("c", "", "specify the corpus")
-var nGames = flag.Int("n", 0, "the number of games")
-var verbose = flag.Bool("v", false, "enable verbose output")
+var amazingGuesserMagic int
+func AmazingGuesser(corpus []string, results []string, nCorrect int) string {
+	result := corpus[amazingGuesserMagic]
+	amazingGuesserMagic++
+	return result
+}
+// --- End "for test purposes" ---
 
-const MAX_TRIES = 10 // don't allow a bot to try forever
+var registeredStrategies = []Strategy {
+	Strategy{name: "ui", bot: GuesserFunc(UserGuess), interactive: true,},
+	Strategy{name: "pathetic", bot: GuesserFunc(HopelessGuesser), interactive: false},
+	Strategy{name: "amazing", bot: GuesserFunc(AmazingGuesser), interactive: false},
+}
+var NonInteractiveStrategyNames = []string{"pathetic","amazing"} // TODO construct dynamically
+
+var corpusPath = flag.String("c", "", "specify the corpus")
+var nGames = flag.Int("n", 0, "the number of games, default entire corpus")
+var verbose = flag.Bool("v", false, "enable verbose output")
+var rawStrategies = flag.String("s", "ui", "comma-separate list of strategies, default \"ui\".")
+
+const MAX_TRIES = 10 // don't allow a bot to try forever (10 is too low though)
 
 func main() {
 	flag.Parse()
@@ -48,22 +66,43 @@ func main() {
 		return
 	}
 
+	var strategyNames []string
+	if (*rawStrategies == "ALL") {
+		strategyNames = NonInteractiveStrategyNames
+	} else {
+		strategyNames = strings.Split(*rawStrategies, ",")
+	}
+
 	engine := gtw.New(corpus)
 	if *nGames == 0 {
 		*nGames = len(engine.Corpus())
 		fmt.Printf("Running corpus (%d words) in order\n", *nGames)
+	} else if *nGames > len(corpus) {
+		*nGames = len(corpus)
 	}
-	runAllSelectedBotsNGames(engine)
+	runAllSelectedBotsNGames(engine, strategyNames)
 
 }
 
-func runAllSelectedBotsNGames(engine *gtw.GtwEngine) {
+func stringInSlice(s string, slice []string) bool {
+	for _, in := range slice {
+		if s == in {
+			return true
+		}
+	}
+	return false
+}
+
+func runAllSelectedBotsNGames(engine *gtw.GtwEngine, strategyNames []string) {
 	for i := 0; i < *nGames; i++ {
 		engine.NewFixedGame(engine.Corpus()[i])
 		goal := engine.Cheat()
-		fmt.Printf("goal %s\n", goal)
+		fmt.Printf("goal \"%s\"\n", goal)
 
-		for _, s := range strategies {
+		for _, s := range registeredStrategies {
+			if ! stringInSlice(s.name, strategyNames) {
+				continue
+			}
 			scores := []string{}
 			nCorrect := 0
 			for tries := 1; ; tries++ {
@@ -71,13 +110,13 @@ func runAllSelectedBotsNGames(engine *gtw.GtwEngine) {
 				score, nCorrectx := engine.Score(guess)
 				if nCorrectx == 5 {
 					if *verbose {
-						fmt.Printf("success bot %s goal %s n %d\n", s.name, goal, tries)
+						fmt.Printf("PASS: bot \"%s\" goal %s n %d\n", s.name, goal, tries)
 					}
 					break
 				}
 				scores = append(scores, score)	
 				if tries >= MAX_TRIES {
-					fmt.Printf("fail bot %s goal %s n %d\n", s.name, goal, tries)
+					fmt.Printf("FAIL: bot \"%s\" goal %s n %d\n", s.name, goal, tries)
 					break
 				}
 			}
