@@ -99,7 +99,7 @@ func filter(words []string, guess string, score string) []string {
 	// fact that we must also find the letter in the word at some other place.
 	for i, r := range(score) {
 		if r == gtw.LETTER_IN_WORD {
-			regexComponents[i] = regexComponents[i] + string(r)
+			regexComponents[i] = regexComponents[i] + string(guess[i])
 		}
 	}
 
