@@ -68,6 +68,7 @@ type Strategy struct {
 // convenience when constructing command lines. The bots "pathetic" and
 // "amazing" are intended for early testing and will be removed.
 var registeredStrategies = []Strategy {
+	Strategy{name: "gmobot", bot: GuesserFunc(GmoGuess), interactive: false},
 	Strategy{name: "ui", bot: GuesserFunc(UserGuess), interactive: true},
 	Strategy{name: "pathetic", bot: GuesserFunc(HopelessGuesser), interactive: false},
 	Strategy{name: "amazing", bot: GuesserFunc(AmazingGuesser), interactive: false},
@@ -113,6 +114,10 @@ func main() {
 			}
 		}
 	}
+	if len(selectedStrategies) == 0 {
+		fmt.Printf("No strategies (bots) selected by the command line options\n")
+		return
+	}
 
 	var goalWords []string
 	if *goals == "" {
@@ -146,7 +151,7 @@ func runAllSelectedBotsNGames(engine *gtw.GtwEngine, games int, selectedStrategi
 	for i := 0; i < games; i++ {
 		engine.NewFixedGame(goalWords[i])
 		goal := engine.Cheat()
-		//fmt.Printf("cheat: \"%s\"\n", goal)
+		// fmt.Printf("cheat: \"%s\"\n", goal)
 
 		for _, s := range selectedStrategies {
 			var guessResults []string
@@ -174,8 +179,13 @@ func runAllSelectedBotsNGames(engine *gtw.GtwEngine, games int, selectedStrategi
 			}
 		}
 	}
-	for name := range statistics {
-		fmt.Printf("STATS bot %s : %v\n", name, statistics[name])
+	for name, counts := range statistics {
+		sum := 0
+		for i, _ := range(counts) {
+			sum += i * counts[i]
+		}
+		score := float32(sum) / float32(games)
+		fmt.Printf("STATS bot %s : %4.2f (%v)\n", name, score, statistics[name])
 	}
 }
 
