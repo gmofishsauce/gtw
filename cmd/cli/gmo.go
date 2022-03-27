@@ -45,7 +45,11 @@ func GmoGuess(corpus []string, scores []string, nCorrect int) string {
 	}
 	
 	// fmt.Printf("gmobot: scores: %v\n", scores)
-	remaining := filter(scores, guesses)
+	remaining := masterWordList
+	for i := range(guesses) {
+		remaining = filter(remaining, guesses[i], scores[i])
+	}
+
 	frequencies := make([]float32, 0, 0) // computeLetterFrequencies(remaining) not used yet
 	guess := choose(remaining, frequencies)
 	guesses = append(guesses, guess)
@@ -53,46 +57,49 @@ func GmoGuess(corpus []string, scores []string, nCorrect int) string {
 	return guess
 }
 
-// filter returns a subset of the master word list. The
-// subset includes all the words left in play.
-func filter(scores []string, guesses []string) []string {
+// filter returns a subset of the argument word list. The subset is constructed
+// by removing all the words that are no longer possible given the score and
+// the guess. The guess is a 5-letter word and the score is a signature returned
+// from GtwEngine.Score().
+
+func filter(words []string, guess string, score string) []string {
 	var regexComponents = []string{"", "", "", "", ""}
-	if len(scores) > 0 {
-		// fmt.Printf("gmobot: score: %s\n", scores[len(scores)-1])
+
+	// Create a stoplist having all the out-of-place letters. This handles a
+	// corner case where a letter is both out-of-place and wrong (this can
+	// happen, another aspect of the double-letter issue). Any letter marked
+	// "out of place" cannot be included in the patterns that specify "not in
+	// word" later.
+	stopList := ""
+	for i, v := range(score) {
+		if v == gtw.LETTER_IN_WORD {
+			stopList = stopList + string(guess[i])
+		}
 	}
 
-	// Create a stoplist of letters for the following stanza. This handles the
-	// corner case where a letter is both out-of-place in one of the guesses
-	// but also wrong in another place (this can happen, another aspect of
-	// the double-letter issue). So any letter marked "out of place" anywhere
-	// cannot be included in the patterns that specify "not in word" later.
-	stopList := ""
-	for i := 0; i < len(scores); i++ {
-		for j := 0; j < len(scores[i]); j++ {
-			if scores[i][j] == gtw.LETTER_IN_WORD {
-				liw := string(guesses[i][j])
-				if !strings.Contains(stopList, liw) {
-					stopList = stopList + liw
+	// Construct negative patterns for letters neither in word nor in stoplist.
+	// If the letters r, t, and e are not in the solution, we want to construct:
+	// [^rte][^rte][^rte][^rte][^rte] as the regex (and then add other features)
+	// fmt.Printf("filter: scores %v | guesses %v\n", scores, guesses)
+	for i, r := range(score) {
+		if r == gtw.LETTER_WRONG {
+			letter := string(guess[i])
+			for k := range regexComponents {
+				// Add the letter to each growing component if it's neither present nor stopped
+				// fmt.Printf("filter: k %d letter %s regexComponents[k] %s\n", k, letter, regexComponents[k])
+				if !strings.Contains(regexComponents[k], letter) && !strings.Contains(stopList, letter) {
+					regexComponents[k] = regexComponents[k] + letter
 				}
 			}
 		}
 	}
 
-	// Start by setting the negative patterns for letters not in the word.
-	// We are contructing a pattern like '[^rte][^rte][^rte][^rte][^rte]
-	// which would make sense after one guess where r, t, e were all absent.
-	// fmt.Printf("filter: scores %v | guesses %v\n", scores, guesses)
-	for i, s := range(scores) {
-		for j, r := range(s) {
-			if r == gtw.LETTER_WRONG {
-				letter := string(guesses[i][j])
-				for k := range regexComponents {
-					// fmt.Printf("filter: k %d letter %s regexComponents[k] %s\n", k, letter, regexComponents[k])
-					if !strings.Contains(regexComponents[k], letter) && !strings.Contains(stopList, letter) {
-						regexComponents[k] = regexComponents[k] + letter
-					}
-				}
-			}
+	// Now any letter that is out of place in the guess can be added to the
+	// negative pattern at its position (only). Later, we'll deal with the
+	// fact that we must also find the letter in the word at some other place.
+	for i, r := range(score) {
+		if r == gtw.LETTER_IN_WORD {
+			regexComponents[i] = regexComponents[i] + string(r)
 		}
 	}
 
@@ -102,32 +109,21 @@ func filter(scores []string, guesses []string) []string {
 		if s == "" {
 			regexComponents[i] = "."
 		} else {
-			regexComponents[i] = "[^" + regexComponents[i] + "]"
+			regexComponents[i] = "[^" + s + "]"
 		}
 	}
 
-	// Next, install all the correct letters. In some cases this will
-	// overwrite negative patterns created just above.
-	for i, s := range(scores) {
-		for j, r := range(s) {
-			if r == gtw.LETTER_CORRECT {
-				regexComponents[j] = string(guesses[i][j])
-			}
+	// Next, install all the "correct" letters. Each correct letter
+	// we see in the score will replace one of the pattern components
+	// we just constructed.
+	for i, r := range(score) {
+		if r == gtw.LETTER_CORRECT {
+			regexComponents[i] = string(guess[i])
 		}
 	}
 
-	// What we have now is sufficient for minimal gameplay, but does not
-	// make use of the letters that are known to be in the word but were
-	// out of position in all guesses made so far. At the command lines,
-	// we do this with a pipeline. I do not know how to write a single
-	// regex to express "match all of the above and then match 'x' and
-	// then match 'y', etc. I think the fastest solution is to accumulate
-	// the valid-but-out-of-position letters in a slice of one-character
-	// strings then make a pass over the remaining candidates doing a
-	// contains() for each of the letters. TODO.
-
+	// Compile the regex
 	re := regexComponents[0] + regexComponents[1] + regexComponents[2] + regexComponents[3] + regexComponents[4]
-	// fmt.Printf("gmobot: regex: %s\n", re)
 	matcher, err := regexp.Compile(re)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gmobot: regex.Compile(): %s\n", err);
@@ -136,20 +132,19 @@ func filter(scores []string, guesses []string) []string {
 
 	// Run the regex over the master word list
 	var result = make([]string, 0, 100)
-	for _, s := range(masterWordList) {
+	for _, s := range(words) {
 		if matcher.FindString(s) != "" {
 			result = append(result, s)
 		}
 	}
 
-	// Remove all the previous guesses from the result
-	for _, s := range guesses {
-		if i := findStringInSlice(s, result); i >= 0 {
-			result[i] = result[len(result)-1]
-			result = result[:len(result)-1]
-		}
+	// Remove the guess from the possible words
+	if i := findStringInSlice(guess, result); i >= 0 {
+		result[i] = result[len(result)-1]
+		result = result[:len(result)-1]
 	}
 
+	fmt.Printf("gmobot: regex: %s in %d out %d\n", re, len(words), len(result))
 	// fmt.Printf("gmobot: remaining possibles: %d\n", len(result))
 	return result
 }
@@ -190,37 +185,3 @@ func botInit(corpus []string) {
 		}
 	}
 }
-
-/*
-func computeLetterFrequencies(words []string) []float32 {
-	rawFrequencies := make([]float32, 26, 26)
-	for _, s := range words {
-		for _, r := range(s) {
-			i := r - 'a'
-			rawFrequencies[i] = rawFrequencies[i] + 1.0
-		}
-	}
-	//fmt.Printf("raw frequencies: %v\n", rawFrequencies)
-	leastLikely := float32(5 * len(words))
-	for _, v := range(rawFrequencies) {
-		if v < leastLikely {
-			leastLikely = v
-		}
-	}
-	nf := make([]float32, 26, 26)
-	// When the list of words gets small, many of the
-	// raw frequencies will be 0. In this case we just
-	// divide by a value which is very roughly the typical
-	// difference between the least and most common letters
-	// in English, about 50:1.
-	divisor := float32(leastLikely)
-	if divisor == 0.0 {
-		divisor = 0.02
-	}
-	for i := range(nf) {
-		nf[i] = rawFrequencies[i] / divisor
-	}
-	//fmt.Printf("Normalized frequencies: %v\n", nf)
-	return nf
-}
-*/

@@ -179,8 +179,13 @@ func runAllSelectedBotsNGames(engine *gtw.GtwEngine, games int, selectedStrategi
 			}
 		}
 	}
-	for name := range statistics {
-		fmt.Printf("STATS bot %s : %v\n", name, statistics[name])
+	for name, counts := range statistics {
+		sum := 0
+		for i, _ := range(counts) {
+			sum += i * counts[i]
+		}
+		score := float32(sum) / float32(games)
+		fmt.Printf("STATS bot %s : %4.2f (%v)\n", name, score, statistics[name])
 	}
 }
 
