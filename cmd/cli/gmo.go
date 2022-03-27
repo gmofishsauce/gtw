@@ -50,7 +50,7 @@ func GmoGuess(corpus []string, scores []string, nCorrect int) string {
 		remaining = filter(remaining, guesses[i], scores[i])
 	}
 
-	frequencies := make([]float32, 0, 0) // computeLetterFrequencies(remaining) not used yet
+	frequencies := computeLetterFrequencies(remaining)
 	guess := choose(remaining, frequencies)
 	guesses = append(guesses, guess)
 	fmt.Printf("gmobot: guess: %s\n", guess)
@@ -138,7 +138,23 @@ func filter(words []string, guess string, score string) []string {
 		}
 	}
 
-	// Remove the guess from the possible words
+	// For each letter in the word but out of place, shrink the result list
+	// by removing all the words that don't contain that letter.
+	for i, r := range(score) {
+		if r == gtw.LETTER_IN_WORD {
+			rTemp := make([]string, 0, 100)
+			mustContain := string(guess[i])
+			for _, s := range(result) {
+				if strings.Contains(s, mustContain) {
+					rTemp = append(rTemp, s)
+				}
+			}
+			fmt.Printf("gmobot: mustContain %s in %d out %d\n", mustContain, len(result), len(rTemp))
+			result = rTemp
+		}
+	}
+
+	// Finally remove the guess from the result list
 	if i := findStringInSlice(guess, result); i >= 0 {
 		result[i] = result[len(result)-1]
 		result = result[:len(result)-1]
@@ -158,12 +174,31 @@ func findStringInSlice(s string, slice []string) int {
 	return -1
 }
 
-
+// Choose a guess from the list of possible words using the 26 letter
+// frequencies passed in the second argument.
 func choose(possible []string, letterFreqs []float32) string {
-	if len(possible) == 0 || len(possible[0]) != 5 {
-		return "badly"
+	goodness := make([]float32, len(possible), len(possible))
+	// This is a little harder than it looks because we don't want to
+	// reward double letters by scoring them twice.
+	for i, v := range(possible) {
+		letters := ""
+		for _, r := range(v) {
+			letter := string(r)
+			if !strings.Contains(letters, letter) {
+				goodness[i] += letterFreqs[r - 'a']
+				letters = letters + letter
+			}
+		}
 	}
-	return possible[0]
+	best := float32(0)
+	result := "badly"
+	for i := range(possible) {
+		if goodness[i] > best {
+			best = goodness[i]
+			result = possible[i]
+		}
+	}
+	return result
 }
 
 // Initialize the bot. Caller determines success or failure by checking
@@ -184,4 +219,46 @@ func botInit(corpus []string) {
 			break
 		}
 	}
+}
+
+// Compute the relative frequencies of each letter in the
+// word list given as argument. If there are 51.6 times
+// as many e's as q's, result['e'] will be 51.6.
+func computeLetterFrequencies(words []string) []float32 {
+	rawFrequencies := make([]int, 26, 26)
+	for _, s := range words {
+		for _, v := range(s) {
+			n := int(v) - 'a'
+			if (n >= 0 && n < len(rawFrequencies)) {
+				rawFrequencies[n]++
+			}
+		}
+	}
+	fmt.Printf("raw frequencies: %v\n", rawFrequencies)
+	leastLikely := 5 * len(words) // big number
+	for _, v := range(rawFrequencies) {
+		if v < leastLikely {
+			leastLikely = v
+		}
+	}
+
+	nf := make([]float32, 26, 26)
+
+	// When the list of words gets small, many of the
+	// raw frequencies will be 0. In this case we just
+	// divide by a value which is very roughly the typical
+	// difference between the least and most common letters
+	// in English, about 50:1 = 0.02
+	divisor := float32(leastLikely)
+	if divisor == 0.0 {
+		divisor = 0.02
+	}
+	for i := range(nf) {
+		nf[i] = float32(rawFrequencies[i]) / divisor
+		if nf[i] > 100.0 {
+			nf[i] = 100.0
+		}
+	}
+	fmt.Printf("Normalized frequencies: %v\n", nf)
+	return nf
 }
