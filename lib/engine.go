@@ -105,6 +105,10 @@ const LETTER_INVALID = 0   // This can't ever occur in a guess or a goal
 func (e *GtwEngine) Score(guess string) (string, int) {
 	var aGuess, aGoal, signature [5]rune
 
+	if len(guess) != 5 {
+		return "#####", 0
+	}
+
 	for i, _ := range(guess) {
 		aGuess[i] = rune(guess[i])
 		aGoal[i] = rune(e.goal[i])
