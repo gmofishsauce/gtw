@@ -53,7 +53,7 @@ func GmoGuess(corpus []string, scores []string, nCorrect int) string {
 	frequencies := computeLetterFrequencies(remaining)
 	guess := choose(remaining, frequencies)
 	guesses = append(guesses, guess)
-	fmt.Printf("gmobot: guess: %s\n", guess)
+	// fmt.Printf("gmobot: guess: %s\n", guess)
 	return guess
 }
 
@@ -149,7 +149,7 @@ func filter(words []string, guess string, score string) []string {
 					rTemp = append(rTemp, s)
 				}
 			}
-			fmt.Printf("gmobot: mustContain %s in %d out %d\n", mustContain, len(result), len(rTemp))
+			// fmt.Printf("gmobot: mustContain %s in %d out %d\n", mustContain, len(result), len(rTemp))
 			result = rTemp
 		}
 	}
@@ -160,7 +160,7 @@ func filter(words []string, guess string, score string) []string {
 		result = result[:len(result)-1]
 	}
 
-	fmt.Printf("gmobot: regex: %s in %d out %d\n", re, len(words), len(result))
+	// fmt.Printf("gmobot: regex: %s in %d out %d\n", re, len(words), len(result))
 	// fmt.Printf("gmobot: remaining possibles: %d\n", len(result))
 	return result
 }
@@ -234,7 +234,7 @@ func computeLetterFrequencies(words []string) []float32 {
 			}
 		}
 	}
-	fmt.Printf("raw frequencies: %v\n", rawFrequencies)
+	// fmt.Printf("raw frequencies: %v\n", rawFrequencies)
 	leastLikely := 5 * len(words) // big number
 	for _, v := range(rawFrequencies) {
 		if v < leastLikely {
@@ -259,6 +259,6 @@ func computeLetterFrequencies(words []string) []float32 {
 			nf[i] = 100.0
 		}
 	}
-	fmt.Printf("Normalized frequencies: %v\n", nf)
+	// fmt.Printf("Normalized frequencies: %v\n", nf)
 	return nf
 }

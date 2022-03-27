@@ -151,7 +151,7 @@ func runAllSelectedBotsNGames(engine *gtw.GtwEngine, games int, selectedStrategi
 	for i := 0; i < games; i++ {
 		engine.NewFixedGame(goalWords[i])
 		goal := engine.Cheat()
-		fmt.Printf("cheat: \"%s\"\n", goal)
+		// fmt.Printf("cheat: \"%s\"\n", goal)
 
 		for _, s := range selectedStrategies {
 			var guessResults []string
